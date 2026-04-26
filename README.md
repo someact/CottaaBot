@@ -14,11 +14,11 @@ A personal Discord bot dedicated to managing temporary voice channels and provid
 * **Activity Logging:** Records important channel actions and administrative commands to a designated log channel.
 
 ### Commands
-* `!help`: Displays a list of available commands and their descriptions.
-* `!setup`: Initializes the bot by sending the control panel interface for users to create temporary voice channels.
-* `!clearchat`: Clears up to 100 recent messages in the current text channel.
-* `!cleartmp`: Forcefully deletes all temporary voice and text channels currently active in the server.
-* `!ipmc <server-ip>`: Fetches and displays the current status, MOTD, and player count of a specified Minecraft server.
+* `/help`: Displays a list of available commands and their descriptions.
+* `/setup`: Initializes the bot by sending the control panel interface for users to create temporary voice channels.
+* `/clearchat`: Clears up to 100 recent messages in the current text channel.
+* `/cleartmp`: Forcefully deletes all temporary voice and text channels currently active in the server.
+* `/ipmc <server-ip>`: Fetches and displays the current status, MOTD, and player count of a specified Minecraft server.
 
 ---
 
@@ -70,17 +70,11 @@ TOKEN=Insert_bot_token_here
 Configure your server IDs and timeout preferences in `config.json`:
 ```json
 {
-    "CATEGORY_ID": "",
-    "DEFAULT_ROLE_ID": "",
-    "LOG_CHANNEL_ID": "",
     "VC_TIMEOUT_MINUTES": 3,
     "REPLY_TIMEOUT_SECONDS": 5,
     "TEXT_CHANNEL_DELETE_DELAY_SECONDS": 5
 }
 ```
-* **CATEGORY_ID**: The ID of the category where the temporary channels will be created.
-* **DEFAULT_ROLE_ID**: The ID of the server's default role (usually the `@everyone` role).
-* **LOG_CHANNEL_ID**: The ID of the text channel where bot activity logs will be sent.
 * **VC_TIMEOUT_MINUTES**: The number of minutes an empty voice channel will remain open before being deleted.
 * **REPLY_TIMEOUT_SECONDS**: The number of seconds before the bot's ephemeral reply messages are automatically deleted.
 * **TEXT_CHANNEL_DELETE_DELAY_SECONDS**: The delay (in seconds) before deleting the private control text channel after the voice channel is manually deleted.
