@@ -1,7 +1,7 @@
 const {
     ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder,
     TextInputBuilder, TextInputStyle, ChannelType, PermissionFlagsBits,
-    UserSelectMenuBuilder, MessageFlags
+    UserSelectMenuBuilder, MessageFlags, EmbedBuilder
 } = require('discord.js');
 const config = require('../config.json'); 
 
@@ -20,7 +20,11 @@ const MAX_USER_LIMIT   = 99;
 
 // reply auto delete
 async function replyAndAutoDelete(interaction, content) {
-    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+    if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content });
+    } else {
+        await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+    }
     setTimeout(() => {
         interaction.deleteReply().catch(() => {});
     }, config.REPLY_TIMEOUT_SECONDS * 1000);
@@ -28,11 +32,15 @@ async function replyAndAutoDelete(interaction, content) {
 
 // send log to a specific channel
 async function sendDiscordLog(interaction, action, details) {
-    const logChannel = interaction.guild.channels.cache.get(config.LOG_CHANNEL_ID);
-    if (logChannel) {
-        await logChannel.send(
-            `📝 **${action}**\n👤 **โดย:** <@${interaction.user.id}>\n⏰ **เวลา:** <t:${Math.floor(Date.now() / 1000)}:F>\n📌 **รายละเอียด:** ${details}`
-        ).catch(() => {});
+    const db = interaction.client.db;
+    const guildConfig = await db.get('SELECT logChannelId FROM guild_config WHERE guildId = ?', [interaction.guild.id]);
+    if (guildConfig && guildConfig.logChannelId) {
+        const logChannel = interaction.guild.channels.cache.get(guildConfig.logChannelId);
+        if (logChannel) {
+            await logChannel.send(
+                `📝 **${action}**\n👤 **โดย:** <@${interaction.user.id}>\n⏰ **เวลา:** <t:${Math.floor(Date.now() / 1000)}:F>\n📌 **รายละเอียด:** ${details}`
+            ).catch(() => {});
+        }
     }
 }
 
@@ -49,9 +57,118 @@ module.exports = {
     async execute(interaction, client) {
         const db = client.db;
 
+        if (interaction.isChatInputCommand()) {
+            const { commandName } = interaction;
+
+            if (commandName === 'help') {
+                const helpText =
+                    `**🛠️ ระบบคำสั่งของบอท (สำหรับ Admin เท่านั้น)**\n\n` +
+                    `- \`/setup\` : เลือกช่องและยศเพื่อตั้งค่าระบบห้องเสียง\n` +
+                    `- \`/ipmc <ip>\` : เช็คสถานะและข้อมูลของเซิร์ฟเวอร์ Minecraft\n` +
+                    `- \`/cleartmp\` : บังคับลบห้องเสียงและห้องแชทชั่วคราวทั้งหมดทันที\n` +
+                    `- \`/clearchat\` : ล้างข้อความ 100 ข้อความในห้องแชทปัจจุบัน`;
+                return interaction.reply({ content: helpText, flags: MessageFlags.Ephemeral });
+            }
+
+            if (commandName === 'ipmc') {
+                const ip = interaction.options.getString('ip');
+                if (!/^[a-zA-Z0-9.\-:]+$/.test(ip)) return interaction.reply({ content: '❌ IP ไม่ถูกต้องครับ', flags: MessageFlags.Ephemeral });
+
+                await interaction.deferReply();
+                try {
+                    const response = await fetch(`https://api.mcsrvstat.us/3/${encodeURIComponent(ip)}`);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const data = await response.json();
+
+                    if (!data.online) return interaction.editReply('❌ ไม่สามารถเชื่อมต่อได้ เซิร์ฟเวอร์อาจจะออฟไลน์ หรือ IP ไม่ถูกต้องครับ');
+
+                    const motd    = data.motd?.clean?.join('\n') ?? 'ไม่มีรายละเอียด';
+                    const iconUrl = `https://api.mcsrvstat.us/icon/${encodeURIComponent(ip)}`;
+
+                    const embed = new EmbedBuilder()
+                        .setColor('#2ECC71')
+                        .setTitle(`🎮 ข้อมูลเซิร์ฟเวอร์: ${ip}`)
+                        .setThumbnail(iconUrl)
+                        .addFields(
+                            { name: '📝 MOTD', value: `\`\`\`\n${motd}\n\`\`\``, inline: false },
+                            { name: '🌐 IP', value: `\`${data.hostname || ip}\``, inline: true },
+                            { name: '📦 เวอร์ชั่น', value: `\`${data.version ?? 'ไม่ทราบ'}\``, inline: true },
+                            { name: '👥 ผู้เล่นออนไลน์', value: `\`${data.players?.online ?? 0} / ${data.players?.max ?? 0}\``, inline: true }
+                        )
+                        .setFooter({ text: 'ข้อมูลอาจมีความหน่วงประมาณ 1-2 นาที' })
+                        .setTimestamp();
+
+                    return interaction.editReply({ embeds: [embed] });
+                } catch (error) {
+                    console.error('[ipmc]', error);
+                    return interaction.editReply('❌ เกิดข้อผิดพลาดในการเชื่อมต่อกับระบบดึงข้อมูลครับ');
+                }
+            }
+
+            if (commandName === 'setup') {
+                const category = interaction.options.getChannel('category');
+                const role = interaction.options.getRole('role');
+                const logChannel = interaction.options.getChannel('log_channel');
+
+                await db.run(`
+                    INSERT INTO guild_config (guildId, categoryId, defaultRoleId, logChannelId) 
+                    VALUES (?, ?, ?, ?) 
+                    ON CONFLICT(guildId) DO UPDATE SET 
+                    categoryId = excluded.categoryId, 
+                    defaultRoleId = excluded.defaultRoleId, 
+                    logChannelId = excluded.logChannelId
+                `, [interaction.guild.id, category.id, role.id, logChannel ? logChannel.id : null]);
+
+                const embed = new EmbedBuilder()
+                    .setTitle('🎙️ ระบบจัดการห้องเสียง')
+                    .setDescription('**คำแนะนำการใช้งาน**\n1. กดปุ่ม  **➕ สร้างห้องเสียง**  ด้านล่าง\n2. บอทจะสร้างห้องเสียง และห้องแชทสำหรับแผงควบคุม\n3. คุณสามารถตั้งค่าห้อง (ล็อค, ซ่อน, เปลี่ยนชื่อ, เตะ, โอนสิทธิ์) ได้จากห้องแชทนั้น')
+                    .setColor('#3498DB');
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('create_temp_vc')
+                        .setLabel('➕ สร้างห้องเสียง')
+                        .setStyle(ButtonStyle.Primary)
+                );
+
+                await interaction.channel.send({ embeds: [embed], components: [row] });
+                return interaction.reply({ content: '✅ ตั้งค่าเสร็จสิ้น', flags: MessageFlags.Ephemeral });
+            }
+
+            if (commandName === 'cleartmp') {
+                await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+                const tempChannels = await db.all('SELECT * FROM temp_channels WHERE guildId = ?', [interaction.guild.id]);
+                let count = 0;
+
+                for (const data of tempChannels) {
+                    const vc = interaction.guild.channels.cache.get(data.channelId);
+                    const textChannel = interaction.guild.channels.cache.get(data.textChannelId);
+                    
+                    if (vc) await vc.delete().catch(() => {});
+                    if (textChannel) await textChannel.delete().catch(() => {});
+                    count++;
+                }
+
+                await db.run('DELETE FROM temp_channels WHERE guildId = ?', [interaction.guild.id]);
+                return interaction.editReply(`🗑️ ลบห้องเสียงและห้องแชทชั่วคราวทั้งหมดจำนวน **${count}** ชุด เรียบร้อยแล้ว`);
+            }
+
+            if (commandName === 'clearchat') {
+                try {
+                    const deleted = await interaction.channel.bulkDelete(100, true);
+                    return interaction.reply({ content: `🧹 ล้างข้อความจำนวน **${deleted.size}** ข้อความเรียบร้อยแล้ว`, flags: MessageFlags.Ephemeral });
+                } catch (error) {
+                    console.error('[clearchat]', error);
+                    return interaction.reply({ content: '❌ เกิดข้อผิดพลาดในการลบแชท (ไม่สามารถลบข้อความที่เก่ากว่า 14 วันได้)', flags: MessageFlags.Ephemeral });
+                }
+            }
+        }
+
         // --- 1. create temporary voice channel ---
         if (interaction.isButton() && interaction.customId === 'create_temp_vc') {
             if (isOnCooldown(interaction.user.id)) return replyAndAutoDelete(interaction, '⏳ กรุณารอสักครู่ก่อนกดซ้ำ');
+
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             const guild = interaction.guild;
             const user  = interaction.user;
@@ -59,11 +176,16 @@ module.exports = {
             const existing = await db.get('SELECT channelId FROM temp_channels WHERE ownerId = ? AND guildId = ?', [user.id, guild.id]);
             if (existing) return replyAndAutoDelete(interaction, `❌ คุณมีห้องเสียงอยู่แล้วที่ <#${existing.channelId}>`);
 
+            const guildConfig = await db.get('SELECT * FROM guild_config WHERE guildId = ?', [guild.id]);
+            if (!guildConfig || !guildConfig.categoryId || !guildConfig.defaultRoleId) {
+                return replyAndAutoDelete(interaction, '❌ เซิร์ฟเวอร์นี้ยังไม่ได้ตั้งค่า! กรุณาให้ Admin ใช้คำสั่ง `!setup` ก่อนครับ');
+            }
+
             // create
             const vc = await guild.channels.create({
                 name: `🔊 ห้องของ ${user.username}`,
                 type: ChannelType.GuildVoice,
-                parent: config.CATEGORY_ID || null,
+                parent: guildConfig.categoryId || null,
                 permissionOverwrites: [
                     { id: guild.roles.everyone.id, allow: [PermissionFlagsBits.Connect] },
                     { id: user.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.ManageChannels] }
@@ -74,7 +196,7 @@ module.exports = {
             const textChannel = await guild.channels.create({
                 name: `⚙️ควบคุม-${user.username}`,
                 type: ChannelType.GuildText,
-                parent: config.CATEGORY_ID || null,
+                parent: guildConfig.categoryId || null,
                 permissionOverwrites: [
                     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] }, // ซ่อนจากทุกคน
                     { id: user.id, allow: [PermissionFlagsBits.ViewChannel] }                 // ให้เฉพาะคนสร้างเห็น
@@ -142,17 +264,25 @@ module.exports = {
             }
 
             if (action === 'lock') {
-                const everyoneOverwrite = vc.permissionOverwrites.cache.get(config.DEFAULT_ROLE_ID);
+                const guildConfig = await db.get('SELECT defaultRoleId FROM guild_config WHERE guildId = ?', [interaction.guild.id]);
+                if (!guildConfig || !guildConfig.defaultRoleId) return replyAndAutoDelete(interaction, '❌ ระบบไม่ได้ตั้งค่ายศเริ่มต้นไว้ (ใช้ `!setup`)');
+                const defaultRoleId = guildConfig.defaultRoleId;
+
+                const everyoneOverwrite = vc.permissionOverwrites.cache.get(defaultRoleId);
                 const isLocked = everyoneOverwrite?.deny.has(PermissionFlagsBits.Connect);
-                await vc.permissionOverwrites.edit(config.DEFAULT_ROLE_ID, { Connect: isLocked ? null : false });
+                await vc.permissionOverwrites.edit(defaultRoleId, { Connect: isLocked ? null : false });
                 await sendDiscordLog(interaction, 'ตั้งค่าห้อง', `**${isLocked ? 'ปลดล็อค' : 'ล็อค'}** ห้อง <#${vc.id}>`);
                 return replyAndAutoDelete(interaction, isLocked ? '🔓 ปลดล็อคห้องแล้ว' : '🔒 ล็อคห้องแล้ว');
             }
 
             if (action === 'hide') {
-                const everyoneOverwrite = vc.permissionOverwrites.cache.get(config.DEFAULT_ROLE_ID);
+                const guildConfig = await db.get('SELECT defaultRoleId FROM guild_config WHERE guildId = ?', [interaction.guild.id]);
+                if (!guildConfig || !guildConfig.defaultRoleId) return replyAndAutoDelete(interaction, '❌ ระบบไม่ได้ตั้งค่ายศเริ่มต้นไว้ (ใช้ `!setup`)');
+                const defaultRoleId = guildConfig.defaultRoleId;
+
+                const everyoneOverwrite = vc.permissionOverwrites.cache.get(defaultRoleId);
                 const isHidden = everyoneOverwrite?.deny.has(PermissionFlagsBits.ViewChannel);
-                await vc.permissionOverwrites.edit(config.DEFAULT_ROLE_ID, { ViewChannel: isHidden ? null : false });
+                await vc.permissionOverwrites.edit(defaultRoleId, { ViewChannel: isHidden ? null : false });
                 await sendDiscordLog(interaction, 'ตั้งค่าห้อง', `**${isHidden ? 'แสดง' : 'ซ่อน'}** ห้อง <#${vc.id}>`);
                 return replyAndAutoDelete(interaction, isHidden ? '👁️ เลิกซ่อนห้องแล้ว' : '👻 ซ่อนห้องแล้ว');
             }

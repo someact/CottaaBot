@@ -34,6 +34,15 @@ async function initDb() {
         WHERE expiresAt IS NOT NULL;
     `);
 
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS guild_config (
+            guildId TEXT PRIMARY KEY,
+            categoryId TEXT NOT NULL,
+            defaultRoleId TEXT NOT NULL,
+            logChannelId TEXT
+        )
+    `);
+
     return db;
 }
 
