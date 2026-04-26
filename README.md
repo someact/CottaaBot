@@ -35,7 +35,7 @@ A personal Discord bot dedicated to managing temporary voice channels and provid
 ### Windows and Linux
 1. Clone the repository:
    ```bash
-   git clone <your_github_repository_url>
+   git clone https://github.com/someact/CottaaBot.git
    cd cottaabot
    ```
 2. Install the required dependencies:
@@ -51,7 +51,7 @@ A personal Discord bot dedicated to managing temporary voice channels and provid
    ```
 2. Clone the repository and install dependencies:
    ```bash
-   git clone <your_github_repository_url>
+   git clone https://github.com/someact/CottaaBot.git
    cd cottaabot
    npm install
    ```
