@@ -5,7 +5,7 @@ module.exports = {
     async execute(oldState, newState, client) {
         const db = client.db;
 
-        // --- ออกจากห้อง: ตั้ง timer หากห้องว่าง ---
+        // --- Leaving the room: Set a timer if the room is empty. ---
         if (oldState.channelId) {
             const channelData = await db.get(
                 'SELECT * FROM temp_channels WHERE channelId = ?',
@@ -16,7 +16,7 @@ module.exports = {
                 const memberCount = oldState.channel.members.size;
 
                 if (memberCount === 0) {
-                    // ✅ ห้องว่าง: ตั้ง timer หมดอายุ
+                    // empty room: set expiration timer
                     const expiresAt = Date.now() + (config.VC_TIMEOUT_MINUTES * 60 * 1000);
                     await db.run(
                         'UPDATE temp_channels SET expiresAt = ? WHERE channelId = ?',
@@ -24,7 +24,7 @@ module.exports = {
                     );
                     console.log(`[VC] ห้อง ${oldState.channelId} ว่าง จะหมดอายุใน ${config.VC_TIMEOUT_MINUTES} นาที`);
                 }
-                // ✅ ยังมีคนอยู่: ยกเลิก timer (กรณีคนออกบางส่วน แต่ยังมีคนเหลือ)
+                // still has members: cancel timer (case: some members leave but others remain)
                 else if (channelData.expiresAt !== null) {
                     await db.run(
                         'UPDATE temp_channels SET expiresAt = NULL WHERE channelId = ?',
@@ -34,7 +34,7 @@ module.exports = {
             }
         }
 
-        // --- เข้าห้อง: ยกเลิก timer ---
+        // --- Joining the room: Cancel timer ---
         if (newState.channelId) {
             const channelData = await db.get(
                 'SELECT * FROM temp_channels WHERE channelId = ?',

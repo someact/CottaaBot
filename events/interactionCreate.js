@@ -18,7 +18,7 @@ function isOnCooldown(userId) {
 const MAX_CHANNEL_NAME = 100;
 const MAX_USER_LIMIT   = 99;
 
-// ✅ ระบบกระซิบและลบตัวเอง
+// reply auto delete
 async function replyAndAutoDelete(interaction, content) {
     await interaction.reply({ content, flags: MessageFlags.Ephemeral });
     setTimeout(() => {
@@ -26,6 +26,7 @@ async function replyAndAutoDelete(interaction, content) {
     }, config.REPLY_TIMEOUT_SECONDS * 1000);
 }
 
+// send log to a specific channel
 async function sendDiscordLog(interaction, action, details) {
     const logChannel = interaction.guild.channels.cache.get(config.LOG_CHANNEL_ID);
     if (logChannel) {
@@ -48,7 +49,7 @@ module.exports = {
     async execute(interaction, client) {
         const db = client.db;
 
-        // --- 1. สร้างห้องเสียง ---
+        // --- 1. create temporary voice channel ---
         if (interaction.isButton() && interaction.customId === 'create_temp_vc') {
             if (isOnCooldown(interaction.user.id)) return replyAndAutoDelete(interaction, '⏳ กรุณารอสักครู่ก่อนกดซ้ำ');
 
@@ -58,7 +59,7 @@ module.exports = {
             const existing = await db.get('SELECT channelId FROM temp_channels WHERE ownerId = ? AND guildId = ?', [user.id, guild.id]);
             if (existing) return replyAndAutoDelete(interaction, `❌ คุณมีห้องเสียงอยู่แล้วที่ <#${existing.channelId}>`);
 
-            // สร้างห้องเสียง
+            // create
             const vc = await guild.channels.create({
                 name: `🔊 ห้องของ ${user.username}`,
                 type: ChannelType.GuildVoice,
@@ -69,7 +70,7 @@ module.exports = {
                 ]
             });
 
-            // ✅ สร้างห้องแชทส่วนตัว (Text Channel) 
+            // create text channel
             const textChannel = await guild.channels.create({
                 name: `⚙️ควบคุม-${user.username}`,
                 type: ChannelType.GuildText,
@@ -83,19 +84,18 @@ module.exports = {
             const row1 = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId(`vc_rename_${vc.id}`).setLabel('📝 เปลี่ยนชื่อ').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId(`vc_limit_${vc.id}`).setLabel('👥 จำกัดคน').setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId(`vc_lock_${vc.id}`).setLabel('🔒 ล็อค/ปลดล็อค').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId(`vc_lock_${vc.id}`).setLabel('🔒 ล็อค/ปลดล็อค').setStyle(ButtonStyle.Primary),
                 new ButtonBuilder().setCustomId(`vc_hide_${vc.id}`).setLabel('👁️ ซ่อน/แสดง').setStyle(ButtonStyle.Primary),
                 new ButtonBuilder().setCustomId(`vc_delete_${vc.id}`).setLabel('🗑️ ลบห้อง').setStyle(ButtonStyle.Danger)
             );
 
             const row2 = new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`vc_kick_${vc.id}`).setPlaceholder('🥾 เตะผู้ใช้ออกจากห้อง'));
             const row3 = new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`vc_transfer_${vc.id}`).setPlaceholder('👑 โอนสิทธิ์เจ้าของห้อง'));
-            const row4 = new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`vc_blacklist_${vc.id}`).setPlaceholder('🚫 แบล็คลิสต์ (บล็อคไม่ให้เข้า)'));
-            const row5 = new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`vc_whitelist_${vc.id}`).setPlaceholder('✅ ไวท์ลิสต์ (อนุญาตให้เข้าตอนล็อคห้อง)'));
+            const row4 = new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`vc_blacklist_${vc.id}`).setPlaceholder('🚫 Blacklist (บล็อคไม่ให้เข้า)'));
+            const row5 = new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`vc_whitelist_${vc.id}`).setPlaceholder('✅ Whitelist (อนุญาตให้เข้า)'));
 
-            // ส่งแผงควบคุมไปที่ห้องแชทใหม่ที่เพิ่งสร้าง
             const controlMsg = await textChannel.send({
-                content: `**แผงควบคุมห้องเสียง:** <#${vc.id}>\n👑 **เจ้าของห้อง:** <@${user.id}>`,
+                content: `▶️ **Control panel for voice-room:** <#${vc.id}>\n👑 **Owner:** <@${user.id}>`,
                 components: [row1, row2, row3, row4, row5]
             });
 
@@ -111,7 +111,7 @@ module.exports = {
             return replyAndAutoDelete(interaction, `✅ สร้างห้องสำเร็จ! ไปจัดการได้ที่ <#${textChannel.id}>`);
         }
 
-        // --- 2. จัดการ Action จาก ปุ่มและ Select Menu ---
+        // --- 2. Action button and Select Menu ---
         if ((interaction.isButton() || interaction.isUserSelectMenu()) && interaction.customId.startsWith('vc_')) {
             if (isOnCooldown(interaction.user.id)) return replyAndAutoDelete(interaction, '⏳ กรุณารอสักครู่ก่อนกดซ้ำ');
 
@@ -161,10 +161,9 @@ module.exports = {
                 await db.run('DELETE FROM temp_channels WHERE channelId = ?', [vcId]);
                 await sendDiscordLog(interaction, 'ลบห้องเสียง', `ลบห้อง ${vc.name} เรียบร้อยแล้ว`);
                 
-                // แจ้งเตือนก่อนลบ
+                // notify before delete
                 await replyAndAutoDelete(interaction, `🗑️ ลบห้องเสียงเรียบร้อยแล้ว ห้องแชทควบคุมนี้จะหายไปใน ${config.TEXT_CHANNEL_DELETE_DELAY_SECONDS} วินาที`);
 
-                // ดีเลย์ลบห้อง
                 setTimeout(async () => {
                     const vcToDelete = interaction.guild.channels.cache.get(vcId);
                     const textChannel = interaction.guild.channels.cache.get(channelData.textChannelId);
@@ -195,11 +194,11 @@ module.exports = {
 
                     await db.run('UPDATE temp_channels SET ownerId = ? WHERE channelId = ?', [targetUserId, vcId]);
                     
-                    // สลับ Permission ห้องเสียง
+                    // transfer ownership of voice channel (new owner gets ManageChannels, old owner loses it)
                     await vc.permissionOverwrites.edit(targetUserId, { Connect: true, ManageChannels: true });
                     await vc.permissionOverwrites.edit(interaction.user.id, { ManageChannels: null }); 
 
-                    // ✅ สลับ Permission ห้องแชทควบคุม (เจ้าของใหม่เห็น คนเก่าหมดสิทธิ์เห็น)
+                    // switch text channel permissions
                     const textChannel = interaction.guild.channels.cache.get(channelData.textChannelId);
                     if (textChannel) {
                         await textChannel.permissionOverwrites.edit(targetUserId, { ViewChannel: true });
@@ -222,13 +221,13 @@ module.exports = {
                     await vc.permissionOverwrites.edit(targetUserId, { Connect: false });
                     const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
                     if (targetMember && targetMember.voice.channelId === vcId) await targetMember.voice.disconnect();
-                    return replyAndAutoDelete(interaction, `🚫 แบล็คลิสต์ <@${targetUserId}> และเตะออกจากห้อง (ถ้าอยู่) เรียบร้อยแล้ว`);
+                    return replyAndAutoDelete(interaction, `🚫 Blacklisted <@${targetUserId}> และเตะออกจากห้อง (ถ้าอยู่) เรียบร้อยแล้ว`);
                 }
 
                 if (action === 'whitelist') {
                     if (targetUserId === interaction.user.id) return replyAndAutoDelete(interaction, '❌ คุณเข้าห้องได้อยู่แล้ว');
                     await vc.permissionOverwrites.edit(targetUserId, { Connect: true });
-                    return replyAndAutoDelete(interaction, `✅ เพิ่ม <@${targetUserId}> ลงในไวท์ลิสต์เรียบร้อยแล้ว เขาสามารถเข้าห้องที่ล็อคอยู่ได้`);
+                    return replyAndAutoDelete(interaction, `✅ เพิ่ม <@${targetUserId}> ลงใน Whitelist เรียบร้อยแล้ว เขาสามารถเข้าห้องที่ล็อคอยู่ได้`);
                 }
             }
         }

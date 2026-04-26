@@ -7,7 +7,7 @@ module.exports = {
         if (message.author.bot) return;
         if (!message.content.startsWith('!')) return; 
 
-        // ✅ จำกัดให้เฉพาะผู้ที่มีสิทธิ์ Administrator เท่านั้นที่ใช้บอทได้
+        // limited to Administrator only
         if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) return;
 
         const args    = message.content.trim().split(/\s+/);
@@ -61,14 +61,14 @@ module.exports = {
 
         if (command === '!setup') {
             const embed = new EmbedBuilder()
-                .setTitle('🎙️ ระบบจัดการห้องเสียงส่วนตัว')
-                .setDescription('**คำแนะนำการใช้งาน:**\n1. กดปุ่ม **"➕ สร้างห้องเสียงส่วนตัว"** ด้านล่าง\n2. บอทจะสร้างห้องเสียง และห้องแชทสำหรับแผงควบคุม (เห็นเฉพาะเจ้าของห้องเท่านั้น)\n3. คุณสามารถตั้งค่าห้อง (ล็อค, ซ่อน, เปลี่ยนชื่อ, เตะ, โอนสิทธิ์) ได้จากห้องแชทนั้น\n4. เมื่อโอนสิทธิ์ให้ผู้อื่น แผงควบคุมจะถูกส่งต่อให้คนใหม่โดยอัตโนมัติ')
+                .setTitle('🎙️ ระบบจัดการห้องเสียง')
+                .setDescription('**คำแนะนำการใช้งาน**\n1. กดปุ่ม  **➕ สร้างห้องเสียง**  ด้านล่าง\n2. บอทจะสร้างห้องเสียง และห้องแชทสำหรับแผงควบคุม\n3. คุณสามารถตั้งค่าห้อง (ล็อค, ซ่อน, เปลี่ยนชื่อ, เตะ, โอนสิทธิ์) ได้จากห้องแชทนั้น')
                 .setColor('#3498DB');
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('create_temp_vc')
-                    .setLabel('➕ สร้างห้องเสียงส่วนตัว')
+                    .setLabel('➕ สร้างห้องเสียง')
                     .setStyle(ButtonStyle.Primary)
             );
             await message.channel.send({ embeds: [embed], components: [row] });
