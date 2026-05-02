@@ -31,6 +31,10 @@ Before running the bot, ensure you have the following installed on your system:
 *   FFmpeg (Required for audio transcoding)
 *   Python and yt-dlp (Required for the music player)
 
+### Music Player Requirements
+
+*   **Cookies File**: For the music player to work reliably with official music videos, you must create a `cookies.txt` file in the project root. This file is used by `yt-dlp` to authenticate with YouTube and bypass bot restrictions.
+
 ## Setup and Installation
 
 ### Windows and Linux
@@ -56,8 +60,7 @@ Before running the bot, ensure you have the following installed on your system:
     pkg install git nodejs-lts ffmpeg python yt-dlp
     ```
 2.  Clone the repository and enter the directory:
-    
-```bash
+    ```bash
     git clone <your_github_repository_url>
     cd cottaabot
     ```
@@ -88,24 +91,20 @@ Edit the `config.json` file to customize timeouts and system settings:
 *   **REPLY_TIMEOUT_SECONDS**: Auto-delete delay for the bot's ephemeral messages.
 *   **TEXT_CHANNEL_DELETE_DELAY_SECONDS**: Delay (in seconds) before deleting the private text control panel after the voice channel is deleted.
 
-## Running the Bot
+## Usage
 
+### Running the Bot
 Once setup is complete, start the bot:
 
 ```bash
 node index.js
 ```
 
-## Music Player Requirements
+### slash commands
+- /setup : setup bot
+- /join : join voice channel
+- /ipmc : show ip of minecraft server
+- /cleartmp : clear temporary voice channels
+- /clearchat : clear all text in channel
+- /help : show help
 
-*   **Cookies File**: For the music player to work reliably with official music videos, you must create a `cookies.txt` file in the project root. This file is used by `yt-dlp` to authenticate with YouTube and bypass bot restrictions.
-
-## Slash command
-```bash
-/setup
-/join 
-/ipmc <ip>
-/cleartmp
-/clearchat
-/help
-```
