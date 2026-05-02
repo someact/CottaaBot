@@ -4,6 +4,7 @@ const {
     UserSelectMenuBuilder, MessageFlags, EmbedBuilder
 } = require('discord.js');
 const config = require('../config.json');
+const musicCommand = require('../commands/music');
 
 const cooldowns = new Map();
 const COOLDOWN_MS = 2000;
@@ -59,6 +60,10 @@ module.exports = {
 
         if (interaction.isChatInputCommand()) {
             const { commandName } = interaction;
+
+            if (commandName === 'join') {
+                return musicCommand.execute(interaction);
+            }
 
             if (commandName === 'help') {
                 const helpText =
@@ -366,6 +371,7 @@ module.exports = {
 
         // --- 3. Modal Submit ---
         if (interaction.isModalSubmit()) {
+            // modal_music_url is handled exclusively by musicInteraction.js
             if (!interaction.customId.startsWith('modal_rename_') && !interaction.customId.startsWith('modal_limit_')) return;
 
             const parts = interaction.customId.split('_');

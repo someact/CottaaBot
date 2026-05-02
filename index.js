@@ -3,6 +3,7 @@ const { Client, GatewayIntentBits, Partials, SlashCommandBuilder, ChannelType, P
 const fs = require('fs');
 const { initDb } = require('./database');
 const config = require('./config.json');
+const musicCommand = require('./commands/music');
 
 const client = new Client({
     intents: [
@@ -98,7 +99,8 @@ async function cleanupExpiredChannels(client) {
             new SlashCommandBuilder()
                 .setName('clearchat')
                 .setDescription('ล้างข้อความ 100 ข้อความล่าสุดในช่องนี้')
-                .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+                .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+            musicCommand.data,
         ].map(command => command.toJSON());
 
         await client.application.commands.set(commands);
