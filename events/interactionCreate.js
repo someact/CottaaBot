@@ -3,10 +3,10 @@ const {
     TextInputBuilder, TextInputStyle, ChannelType, PermissionFlagsBits,
     UserSelectMenuBuilder, MessageFlags, EmbedBuilder
 } = require('discord.js');
-const config = require('../config.json'); 
+const config = require('../config.json');
 
 const cooldowns = new Map();
-const COOLDOWN_MS = 2000; 
+const COOLDOWN_MS = 2000;
 
 function isOnCooldown(userId) {
     const last = cooldowns.get(userId);
@@ -16,7 +16,7 @@ function isOnCooldown(userId) {
 }
 
 const MAX_CHANNEL_NAME = 100;
-const MAX_USER_LIMIT   = 99;
+const MAX_USER_LIMIT = 99;
 
 // reply auto delete
 async function replyAndAutoDelete(interaction, content) {
@@ -26,7 +26,7 @@ async function replyAndAutoDelete(interaction, content) {
         await interaction.reply({ content, flags: MessageFlags.Ephemeral });
     }
     setTimeout(() => {
-        interaction.deleteReply().catch(() => {});
+        interaction.deleteReply().catch(() => { });
     }, config.REPLY_TIMEOUT_SECONDS * 1000);
 }
 
@@ -39,7 +39,7 @@ async function sendDiscordLog(interaction, action, details) {
         if (logChannel) {
             await logChannel.send(
                 `📝 **${action}**\n👤 **โดย:** <@${interaction.user.id}>\n⏰ **เวลา:** <t:${Math.floor(Date.now() / 1000)}:F>\n📌 **รายละเอียด:** ${details}`
-            ).catch(() => {});
+            ).catch(() => { });
         }
     }
 }
@@ -48,7 +48,7 @@ function parseVcCustomId(customId) {
     const parts = customId.split('_');
     if (parts.length < 3) return null;
     const action = parts[1];
-    const vcId   = parts.slice(2).join('_'); 
+    const vcId = parts.slice(2).join('_');
     return { action, vcId };
 }
 
@@ -76,14 +76,16 @@ module.exports = {
 
                 await interaction.deferReply();
                 try {
-                    const response = await fetch(`https://api.mcsrvstat.us/3/${encodeURIComponent(ip)}`);
+                    // ✅ เปลี่ยนมาใช้ api.mcstatus.io ที่รองรับ SRV และ playit.gg ได้ดีกว่า
+                    const response = await fetch(`https://api.mcstatus.io/v2/status/java/${encodeURIComponent(ip)}`);
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     const data = await response.json();
 
                     if (!data.online) return interaction.editReply('❌ ไม่สามารถเชื่อมต่อได้ เซิร์ฟเวอร์อาจจะออฟไลน์ หรือ IP ไม่ถูกต้องครับ');
 
-                    const motd    = data.motd?.clean?.join('\n') ?? 'ไม่มีรายละเอียด';
-                    const iconUrl = `https://api.mcsrvstat.us/icon/${encodeURIComponent(ip)}`;
+                    // ✅ ปรับวิธีดึงค่าให้ตรงกับ JSON ของ mcstatus.io
+                    const motd = data.motd?.clean ?? 'ไม่มีรายละเอียด';
+                    const iconUrl = `https://api.mcstatus.io/v2/icon/${encodeURIComponent(ip)}`;
 
                     const embed = new EmbedBuilder()
                         .setColor('#2ECC71')
@@ -91,8 +93,8 @@ module.exports = {
                         .setThumbnail(iconUrl)
                         .addFields(
                             { name: '📝 MOTD', value: `\`\`\`\n${motd}\n\`\`\``, inline: false },
-                            { name: '🌐 IP', value: `\`${data.hostname || ip}\``, inline: true },
-                            { name: '📦 เวอร์ชั่น', value: `\`${data.version ?? 'ไม่ทราบ'}\``, inline: true },
+                            { name: '🌐 IP', value: `\`${data.host || ip}\``, inline: true },
+                            { name: '📦 เวอร์ชั่น', value: `\`${data.version?.name_raw || data.version?.name || 'ไม่ทราบ'}\``, inline: true },
                             { name: '👥 ผู้เล่นออนไลน์', value: `\`${data.players?.online ?? 0} / ${data.players?.max ?? 0}\``, inline: true }
                         )
                         .setFooter({ text: 'ข้อมูลอาจมีความหน่วงประมาณ 1-2 นาที' })
@@ -143,9 +145,9 @@ module.exports = {
                 for (const data of tempChannels) {
                     const vc = interaction.guild.channels.cache.get(data.channelId);
                     const textChannel = interaction.guild.channels.cache.get(data.textChannelId);
-                    
-                    if (vc) await vc.delete().catch(() => {});
-                    if (textChannel) await textChannel.delete().catch(() => {});
+
+                    if (vc) await vc.delete().catch(() => { });
+                    if (textChannel) await textChannel.delete().catch(() => { });
                     count++;
                 }
 
@@ -171,7 +173,7 @@ module.exports = {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             const guild = interaction.guild;
-            const user  = interaction.user;
+            const user = interaction.user;
 
             const existing = await db.get('SELECT channelId FROM temp_channels WHERE ownerId = ? AND guildId = ?', [user.id, guild.id]);
             if (existing) return replyAndAutoDelete(interaction, `❌ คุณมีห้องเสียงอยู่แล้วที่ <#${existing.channelId}>`);
@@ -227,7 +229,7 @@ module.exports = {
             );
 
             const memberVoice = interaction.member.voice;
-            if (memberVoice.channel) await memberVoice.setChannel(vc).catch(() => {});
+            if (memberVoice.channel) await memberVoice.setChannel(vc).catch(() => { });
 
             await sendDiscordLog(interaction, 'สร้างห้องเสียงชั่วคราว', `ห้อง <#${vc.id}> และห้องแชท <#${textChannel.id}> ถูกสร้างขึ้น`);
             return replyAndAutoDelete(interaction, `✅ สร้างห้องสำเร็จ! ไปจัดการได้ที่ <#${textChannel.id}>`);
@@ -290,17 +292,17 @@ module.exports = {
             if (action === 'delete') {
                 await db.run('DELETE FROM temp_channels WHERE channelId = ?', [vcId]);
                 await sendDiscordLog(interaction, 'ลบห้องเสียง', `ลบห้อง ${vc.name} เรียบร้อยแล้ว`);
-                
+
                 // notify before delete
                 await replyAndAutoDelete(interaction, `🗑️ ลบห้องเสียงเรียบร้อยแล้ว ห้องแชทควบคุมนี้จะหายไปใน ${config.TEXT_CHANNEL_DELETE_DELAY_SECONDS} วินาที`);
 
                 setTimeout(async () => {
                     const vcToDelete = interaction.guild.channels.cache.get(vcId);
                     const textChannel = interaction.guild.channels.cache.get(channelData.textChannelId);
-                    if (vcToDelete) await vcToDelete.delete().catch(() => {});
-                    if (textChannel) await textChannel.delete().catch(() => {});
+                    if (vcToDelete) await vcToDelete.delete().catch(() => { });
+                    if (textChannel) await textChannel.delete().catch(() => { });
                 }, config.TEXT_CHANNEL_DELETE_DELAY_SECONDS * 1000);
-                
+
                 return;
             }
 
@@ -323,24 +325,24 @@ module.exports = {
                     if (!targetMember || targetMember.user.bot) return replyAndAutoDelete(interaction, '❌ ไม่สามารถโอนสิทธิ์ให้บอทหรือผู้ใช้นี้ได้');
 
                     await db.run('UPDATE temp_channels SET ownerId = ? WHERE channelId = ?', [targetUserId, vcId]);
-                    
+
                     // transfer ownership of voice channel (new owner gets ManageChannels, old owner loses it)
                     await vc.permissionOverwrites.edit(targetUserId, { Connect: true, ManageChannels: true });
-                    await vc.permissionOverwrites.edit(interaction.user.id, { ManageChannels: null }); 
+                    await vc.permissionOverwrites.edit(interaction.user.id, { ManageChannels: null });
 
                     // switch text channel permissions
                     const textChannel = interaction.guild.channels.cache.get(channelData.textChannelId);
                     if (textChannel) {
                         await textChannel.permissionOverwrites.edit(targetUserId, { ViewChannel: true });
-                        await textChannel.permissionOverwrites.edit(interaction.user.id, { ViewChannel: null }); 
-                        
+                        await textChannel.permissionOverwrites.edit(interaction.user.id, { ViewChannel: null });
+
                         await textChannel.send(`👑 <@${targetUserId}> คุณได้รับสิทธิ์เป็นเจ้าของห้องเสียง <#${vcId}> คนใหม่แล้ว!`);
                     }
 
                     if (interaction.message) {
                         await interaction.message.edit({
                             content: `**แผงควบคุมห้องเสียง:** <#${vc.id}>\n👑 **เจ้าของห้อง:** <@${targetUserId}>`
-                        }).catch(() => {});
+                        }).catch(() => { });
                     }
 
                     return replyAndAutoDelete(interaction, `✅ โอนสิทธิ์เจ้าของห้องให้ <@${targetUserId}> เรียบร้อยแล้ว แผงควบคุมจะถูกสลับไปให้คนใหม่`);
@@ -366,10 +368,10 @@ module.exports = {
         if (interaction.isModalSubmit()) {
             if (!interaction.customId.startsWith('modal_rename_') && !interaction.customId.startsWith('modal_limit_')) return;
 
-            const parts  = interaction.customId.split('_');
+            const parts = interaction.customId.split('_');
             const action = parts[1];
-            const vcId   = parts.slice(2).join('_');
-            const vc     = interaction.guild.channels.cache.get(vcId);
+            const vcId = parts.slice(2).join('_');
+            const vc = interaction.guild.channels.cache.get(vcId);
             if (!vc) return replyAndAutoDelete(interaction, '❌ ไม่พบห้องเสียง');
 
             const channelData = await db.get('SELECT * FROM temp_channels WHERE channelId = ?', [vcId]);
@@ -385,7 +387,7 @@ module.exports = {
             }
 
             if (action === 'limit') {
-                const raw   = interaction.fields.getTextInputValue('limit_num').trim();
+                const raw = interaction.fields.getTextInputValue('limit_num').trim();
                 const limit = parseInt(raw, 10);
                 if (isNaN(limit) || limit < 0 || limit > MAX_USER_LIMIT) {
                     return replyAndAutoDelete(interaction, `❌ กรุณาใส่ตัวเลข 0–${MAX_USER_LIMIT} เท่านั้น`);
