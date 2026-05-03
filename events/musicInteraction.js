@@ -23,6 +23,9 @@ const { buildDashboard } = require('../commands/music');
 
 const execFilePromise = promisify(execFile);
 
+const config = require('../config.json');
+const useEjs = config.USE_EJS || false; // ถ้าไม่ได้ตั้งค่าไว้ จะถือว่าเป็น false (PC โหมด)
+
 // Absolute path to the Netscape-format cookies file exported from your browser.
 // Keep this file out of version control (.gitignore).
 const COOKIES_PATH = path.resolve(__dirname, '..', 'cookies.txt');
@@ -36,15 +39,30 @@ const COOKIES_PATH = path.resolve(__dirname, '..', 'cookies.txt');
  * @returns {Promise<{ title: string, url: string, duration: number }>}
  */
 async function getYtInfo(query) {
-    const { stdout } = await execFilePromise('yt-dlp', [
-        '--cookies', COOKIES_PATH,
-        '-f', 'bestaudio/best',
+    const args = [
+        '--cookies', COOKIES_PATH
+    ];
+
+    // เช็คว่าเป็น PRoot หรือ PC
+    if (useEjs) {
+        args.push(
+            '--js-runtimes', 'node',
+            '--remote-components', 'ejs:github'
+        );
+    } else {
+        args.push('-f', 'bestaudio/best');
+    }
+
+    // ใส่พารามิเตอร์ที่เหมือนกันทั้ง 2 ฝั่งต่อท้าย
+    args.push(
         '--dump-json',
         '--default-search', 'ytsearch1:',
         '--no-warnings',
         '--skip-download',
-        query,
-    ]);
+        query
+    );
+
+    const { stdout } = await execFilePromise('yt-dlp', args);
     const data = JSON.parse(stdout.trim().split('\n')[0]); // first result only
     return {
         title: data.title || 'Unknown Title',
@@ -61,14 +79,30 @@ async function getYtInfo(query) {
  * @returns {{ stream: import('stream').Readable, process: import('child_process').ChildProcess }}
  */
 function createYtDlpStream(url) {
-    const ytDlpProcess = spawn('yt-dlp', [
-        '--cookies', COOKIES_PATH,
-        '-f', 'bestaudio[ext=webm]/bestaudio/best',
+    const args = [
+        '--cookies', COOKIES_PATH
+    ];
+
+    // เช็คว่าเป็น PRoot หรือ PC
+    if (useEjs) {
+        args.push(
+            '--js-runtimes', 'node',
+            '--remote-components', 'ejs:github',
+            '-f', 'bestaudio/best'
+        );
+    } else {
+        args.push('-f', 'bestaudio[ext=webm]/bestaudio/best');
+    }
+
+    // ใส่พารามิเตอร์ที่เหมือนกันทั้ง 2 ฝั่งต่อท้าย
+    args.push(
         '--no-warnings',
         '--no-playlist',
         '-o', '-',   // pipe audio data to stdout
-        url,
-    ]);
+        url
+    );
+
+    const ytDlpProcess = spawn('yt-dlp', args);
 
     ytDlpProcess.stderr.on('data', (chunk) => {
         const msg = chunk.toString().trim();
