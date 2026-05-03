@@ -41,8 +41,8 @@ Before running the bot, ensure you have the following installed on your system:
 
 1.  Clone the repository:
     ```bash
-    git clone <your_github_repository_url>
-    cd cottaabot
+    git clone https://github.com/someact/CottaaBot.git
+    cd CottaaBot
     ```
 2.  Install Node.js dependencies:
     ```bash
@@ -61,8 +61,8 @@ Before running the bot, ensure you have the following installed on your system:
     ```
 2.  Clone the repository and enter the directory:
     ```bash
-    git clone <your_github_repository_url>
-    cd cottaabot
+    git clone https://github.com/someact/CottaaBot.git
+    cd CottaaBot
     ```
 3.  Fix Android NDK build issues (Required for sqlite3 on Termux) and install dependencies:
     ```bash
