@@ -38,6 +38,7 @@ const COOKIES_PATH = path.resolve(__dirname, '..', 'cookies.txt');
 async function getYtInfo(query) {
     const { stdout } = await execFilePromise('yt-dlp', [
         '--cookies', COOKIES_PATH,
+        '-f', 'bestaudio/best',
         '--dump-json',
         '--default-search', 'ytsearch1:',
         '--no-warnings',
@@ -186,7 +187,7 @@ async function _notifyError(client, state, trackTitle, errMsg) {
         const msg = await ch.send(
             `⚠️ Failed to play **${trackTitle}** — skipping.\n\`\`\`${errMsg}\`\`\``
         );
-        setTimeout(() => msg.delete().catch(() => {}), 10_000);
+        setTimeout(() => msg.delete().catch(() => { }), 10_000);
     } catch { /* ignore */ }
 }
 
